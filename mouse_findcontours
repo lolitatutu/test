@@ -1,0 +1,147 @@
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp> 
+#include<opencv2/opencv.hpp>
+#include <iostream> 
+using namespace cv; 
+using namespace std;
+#define WINDOW_NAME1 "【原始图】"					//为窗口标题定义的宏  
+#define WINDOW_NAME2 "【图像轮廓】"        //为窗口标题定义的宏  
+Mat g_vImage;
+ 
+//Mat midImage;Mat dilateImage;Mat erodeImage;
+//int g_nThresh = 100; 
+//int g_nMaxThresh = 255; 
+RNG g_rng(12345);
+vector<vector<Point> > g_vContours; 
+vector<Vec4i> g_vHierarchy; 
+//int g_x,g_y;
+void on_ThreshChange(int, void* ); 
+vector<vector<Point> > make_contours_closed(vector<vector<Point> > contours) 
+{  
+	vector<vector<Point> > g_vContours;  
+	g_vContours.resize(contours.size());  
+	for(int i = 0; i < contours.size(); i++)  
+		approxPolyDP(contours[i], g_vContours[i], 0.1, true);  
+	return g_vContours;  
+} 
+void on_MouseHandle(int event, int x,int y,int flags,void* param);
+
+int smallest_contour(Point p, vector<vector<Point> > contours, vector<Vec4i> g_vHierarchy);
+	  
+int main( int argc, char** argv ) 
+{ 
+	//【0】改变console字体颜色 
+	//system("color 9F");  
+
+	   
+  	// 读入原图像, 返回3通道图像数据 
+	Mat srcImage = imread( "3.jpg", 1 ); 
+	g_vImage=srcImage.clone();  
+	    
+	// 把原图像转化成灰度图像并进行平滑
+	Mat grayImage; 
+	cvtColor( srcImage, grayImage, COLOR_BGR2GRAY ); 
+	// 创建新窗口 
+	namedWindow( WINDOW_NAME1, WINDOW_AUTOSIZE ); 
+	imshow( WINDOW_NAME1, srcImage ); 
+		
+		  
+	Mat midImage=Mat::zeros(srcImage.rows,srcImage.cols,CV_8UC3);
+	adaptiveThreshold(grayImage, midImage, 255, CV_ADAPTIVE_THRESH_MEAN_C, CV_THRESH_BINARY, 3, 5);
+	imshow("adaptive",midImage);
+
+	/*Mat element=getStructuringElement(MORPH_RECT,Size(5,5));
+	dilate(midImage,midImage,element);
+	erode(midImage,erodeImage,element);
+	dilate(erodeImage,dilateImage,element);
+	imshow("dilate",erodeImage);*/
+	Mat g_cannyMat_output;
+	Canny(grayImage,g_cannyMat_output,50,150,3);
+	imshow("Canny",g_cannyMat_output);
+	vector<vector<Point> > contours;
+	findContours( g_cannyMat_output, contours, g_vHierarchy, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE, Point(0, 0));
+	cout<<"have extercontours:"<<contours.size()<<"tiao"<<endl;
+	g_vContours = make_contours_closed(contours);
+	g_vImage=Mat ::zeros(g_cannyMat_output.size(),CV_8UC3);
+	drawContours( g_vImage, g_vContours, -1, Scalar(0,255,0));
+	
+	imshow( WINDOW_NAME2, g_vImage);
+	setMouseCallback(WINDOW_NAME2,on_MouseHandle,(void*)&g_vImage);	
+	
+		
+	//on_ThreshChange( 0, 0 ); 
+		 		   
+	waitKey(0); 
+	return(0); 
+} 
+void on_MouseHandle(int event, int x,int y,int flags,void* param)
+{
+	Mat &image=*(cv::Mat*)param;
+	if(event!=EVENT_LBUTTONDOWN)
+		return;
+			Point pt=Point(x,y);
+			cout<<"at("<<x<<","<<y<<")value is:"<<endl;
+			int contour_show_idx=smallest_contour(pt,g_vContours,g_vHierarchy);
+			if(contour_show_idx<0)
+			{
+				cout<<"lalala"<<endl;
+				imshow(WINDOW_NAME2,g_vImage);
+				return;
+
+			}
+			vector<vector<Point> > contour_show;  
+			contour_show.push_back(g_vContours[contour_show_idx]);  
+			if(!contour_show.empty()) 
+			{  
+				cout<<"aaa"<<endl;
+				Mat img_show = g_vImage.clone();  
+				drawContours(img_show, contour_show, -1, Scalar(0, 0, 255), 3);  
+				imshow(WINDOW_NAME2, img_show);  
+			}  
+			
+			/*Mat drawing=Mat ::zeros(g_cannyMat_output.size(),CV_8UC3);
+			for( unsigned int i = 0; i< g_vContours.size(); i++ )
+			{
+				if(pointPolygonTest(g_vContours[i],Point2f(g_x,g_y),true)>0)
+				{
+					cout<<"lalala"<<endl;
+					Scalar color = Scalar( g_rng.uniform(0, 255), g_rng.uniform(0,255), g_rng.uniform(0,255) );
+					drawContours( drawing, g_vContours, i, color, FILLED, 8, g_vHierarchy, 0, Point() );
+				//circle( drawing, mc[i], 4, color, -1, 8, 0 );
+				}
+				if(pointPolygonTest(g_vContours[i],Point2f(g_x,g_y),true)<0)
+				{
+					cout<<"aaa"<<endl;
+					Scalar color = Scalar( g_rng.uniform(0, 255), g_rng.uniform(0,255), g_rng.uniform(0,255) );
+					drawContours( drawing, g_vContours, i, color, FILLED, 8, g_vHierarchy, 0, Point() );	
+				}
+				namedWindow( WINDOW_NAME2, WINDOW_AUTOSIZE );
+	
+				
+
+			} */
+		
+		
+	
+	
+}
+
+int smallest_contour(Point p, vector<vector<Point> > contours, vector<Vec4i> g_vHierarchy) 
+{  
+	int idx = 0, prev_idx = -1;  
+	while(idx >= 0) 
+	{  
+		vector<Point> c = contours[idx];  
+		// Point-polgon test  
+		double d = pointPolygonTest(c, p, false);  
+		// If point is inside the contour, check its children for an even smaller contour...  
+		if(d > 0) 
+		{  
+			prev_idx = idx;  
+			idx = g_vHierarchy[idx][2];  
+		}  
+    		// ...else, check the next contour on the same level  
+    		else idx = g_vHierarchy[idx][0];  
+	}  
+  return prev_idx;  
+} 
