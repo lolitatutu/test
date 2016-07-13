@@ -1,0 +1,164 @@
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp> 
+#include<opencv2/opencv.hpp>
+#include <iostream> 
+using namespace cv; 
+using namespace std; 
+
+#define WINDOW_NAME1 "【原始图】"					//为窗口标题定义的宏  
+#define WINDOW_NAME2 "【图像轮廓】"        //为窗口标题定义的宏  
+//Mat midImage;Mat dilateImage;Mat erodeImage;
+//int g_nThresh = 100; 
+//int g_nMaxThresh = 255; 
+
+Mat g_vImage;
+RNG g_rng(12345); 
+Mat g_grayImage;
+Mat g_cannyMat_output;
+Rect g_moveMouse;
+bool g_LBUTTONDOWN=false;
+ 
+vector<vector<Point> > g_vContours; 
+vector<Vec4i> g_vHierarchy; 
+//int g_x,g_y;
+//void on_ThreshChange(int, void* ); 
+void on_MouseHandle(int event, int x,int y,int flags,void* param);
+Mat moveImage(Mat& srcImage,int xset,int yset);
+void translateTransform(Mat const& src, Mat& dst, int dx, int dy);
+int main( int argc, char** argv ) 
+{ 
+	//【0】改变console字体颜色 
+	//system("color 9F");  
+
+	   
+  	// 读入原图像, 返回3通道图像数据 
+	Mat srcImage = imread( "3.jpg", 1 ); 
+
+	g_vImage=srcImage.clone();  
+	    
+	// 把原图像转化成灰度图像并进行平滑
+	 
+	cvtColor( srcImage, g_grayImage, COLOR_BGR2GRAY ); 
+	// 创建新窗口 
+	namedWindow( WINDOW_NAME1, WINDOW_AUTOSIZE ); 
+	imshow( WINDOW_NAME1, srcImage ); 
+	cout << "Width : " << srcImage.cols << endl;
+	cout << "Height: " << srcImage.rows << endl;		  
+	
+	
+	Canny(g_grayImage,g_cannyMat_output,50,150,3);
+	//cvtColor( g_cannyMat_output, g_cannyMat_output, COLOR_GRAY2RGB );
+	imshow("Canny",g_cannyMat_output);
+	//cout << "Width : " <<g_cannyMat_output.cols << endl;
+	//cout << "Height: " << g_cannyMat_output.rows << endl;
+	
+	//Mat midImage=moveImage(g_cannyMat_output,100,200);
+	//imshow("move",midImage);
+
+	
+	//vector<vector<Point> > contours;
+	//findContours( g_cannyMat_output, contours, g_vHierarchy, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE, Point(0, 0));
+	//cout<<"have extercontours:"<<contours.size()<<"tiao"<<endl;
+	
+	//g_vImage=Mat ::zeros(g_cannyMat_output.size(),CV_8UC3);
+	//drawContours( g_vImage, g_vContours, -1, Scalar(0,255,0));
+	
+	//imshow( WINDOW_NAME2, g_vImage);
+	setMouseCallback(WINDOW_NAME1,on_MouseHandle/*,(void*)&g_vImage*/);	
+	
+		
+	//on_ThreshChange( 0, 0 ); 
+		 		   
+	waitKey(0); 
+	return(0); 
+}
+
+void on_MouseHandle(int event, int x,int y,int flags,void* param)
+{
+	Mat &image=*(cv::Mat*)param;
+	
+	Mat addImage;
+	double alpha=0.5;
+	double beta=1-alpha;
+	switch(event)
+	{
+		case(EVENT_LBUTTONDOWN):
+		{
+			g_LBUTTONDOWN=true;
+			//Point pt=Point(x,y);
+			cout<<"at("<<x<<","<<y<<")"<<endl;
+			Mat addImage;
+			
+			//addImage=g_grayImage(Rect(0,0,))
+			addWeighted(g_grayImage,alpha,g_cannyMat_output,beta,0.0,addImage);
+			imshow( WINDOW_NAME1,addImage);
+			g_moveMouse=Rect(x,y,0,0);
+		}
+		break;
+		case(EVENT_MOUSEMOVE):
+		{
+			if(g_LBUTTONDOWN)
+			{
+				g_moveMouse.width=x-g_moveMouse.x;
+				g_moveMouse.height=y-g_moveMouse.y;
+				cout<<"change("<<g_moveMouse.width<<","<<g_moveMouse.height<<")"<<endl;
+				Mat midImage=moveImage(g_cannyMat_output,g_moveMouse.width,g_moveMouse.height);
+				addWeighted(g_grayImage,alpha,midImage,beta,0.0,addImage);
+				imshow( WINDOW_NAME1,addImage);	
+			}
+		}
+		break;
+		case(EVENT_LBUTTONUP):
+		{
+			g_LBUTTONDOWN=false;
+			Mat addImage;
+			addWeighted(g_grayImage,alpha,g_cannyMat_output,beta,0.0,addImage);
+			//imshow( WINDOW_NAME1,addImage);
+			imshow( WINDOW_NAME1,g_vImage);
+		}
+	}		
+}
+
+/*Mat moveImage(Mat & srcImage,int xset,int yset)
+{
+	int nRows=srcImage.rows;
+	int nCols=srcImage.cols;
+	Mat result(srcImage.size(),srcImage.type());
+	for(int i=0;i<nRows;i++)
+	{
+		for(int j=0;j<nCols;j++)
+		{
+			int x=j-xset;
+			int y=i-yset;
+			if(x>=0 && y>=0 && x<nCols && y<nRows)
+			{
+				cout<<"at("<<i<<","<<j<<")"<<endl;	
+				result.at<Vec3d>(i,j)=srcImage.ptr<Vec3d>(y)[x];
+			}
+		}
+	}
+	return result;	
+}*/
+
+Mat moveImage(Mat & srcImage,int xset,int yset)
+{
+	Mat result(srcImage.size(),srcImage.type(),Scalar::all(0));
+	if(xset>=0 && yset>=0)
+	{
+		srcImage(Rect(0,0,srcImage.cols-xset,srcImage.rows-yset)).copyTo(result(Rect(xset,yset,result.cols-xset,srcImage.rows-yset)));
+	}
+	else if(xset<0 && yset>=0)
+	{
+		srcImage(Rect(-xset,0,srcImage.cols+xset,srcImage.rows-yset)).copyTo(result(Rect(0,yset,result.cols+xset,srcImage.rows-yset)));
+	}
+	else if(xset>=0 && yset<0)
+	{
+		srcImage(Rect(0,-yset,srcImage.cols-xset,srcImage.rows+yset)).copyTo(result(Rect(xset,0,result.cols-xset,srcImage.rows+yset)));
+	}
+	else if(xset<0 && yset<0)
+	{
+		srcImage(Rect(-xset,-yset,srcImage.cols+xset,srcImage.rows+yset)).copyTo(result(Rect(0,0,result.cols+xset,(srcImage.rows+yset))));
+	}
+	return result;
+	
+}
