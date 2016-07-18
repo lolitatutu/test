@@ -1,0 +1,163 @@
+#include <opencv2/datasets/dataset.hpp>
+#include <stdio.h>
+#include <iostream>
+#include "opencv2/core.hpp"
+#include "opencv2/imgproc.hpp"
+#include "opencv2/features2d.hpp"
+#include "opencv2/highgui.hpp"
+#include "opencv2/calib3d.hpp"
+#include "opencv2/xfeatures2d.hpp"
+using namespace cv;
+using namespace std;
+using namespace cv::xfeatures2d;
+void readme();
+Mat orb_feature(Mat img_object,Mat img_scene);
+//int LoadData(string filName,Mat& matData,int matRows=0,int matCols=0,int matChns=0);
+/* @function main */
+int main( int argc, char** argv )
+{
+	
+  	 
+	FILE *fp;  
+	char imagepath[200];  
+	int imagecount=0;
+	//imshow("1",img_1);
+	 Mat img_object=imread("1305031229.528748.png");
+	/* IMAGE_LIST_FILE 存放图像的名字*/  
+	fp=fopen("rgb1.txt","r");  
+	while(!feof(fp)) 
+	  
+	while(fscanf(fp,"%s ",imagepath)   >   0)   
+	{  
+		//读取图片
+		//Mat img_object=imread(imagepath); 
+		// 
+		Mat img_scene=imread(imagepath); 
+ 
+		//imshow("ii",img_scene);  
+		//waitKey(300); //每隔三秒显示  
+
+		double t=(double)getTickCount();
+		//if( argc != 3 )
+		//{ return -1; }
+		//Mat img_1 = imread( argv[1], IMREAD_GRAYSCALE );
+		//Mat img_2 = imread( argv[2], IMREAD_GRAYSCALE );
+		if( !img_object.data || !img_scene.data )
+   		{ return -1; }
+		cout<<"start"<<endl;
+		Mat img_matches=orb_feature(img_object,img_scene);
+  	
+
+
+
+
+
+	
+  		//-- Draw matches
+  		//Mat img_matches;
+  		//drawMatches( img_object, keyPoints_object, img_scene, keyPoints_scene, matches, img_matches );
+  	
+  		//t=((double)cvGetTickCount()-t)/(cvGetTickFrequency()*1000);
+  		t=((double)getTickCount()-t)*1000/(getTickFrequency());
+
+	
+  		//-- Show detected matches
+  		imshow("Matches", img_matches );
+  		waitKey(1);
+ 	 	//cout<<"zhenglv="<<(double)getTickFrequency()/t<<")ms"<<endl;
+ 	 	cout<<"exec time=("<<t<<")ms"<<endl;
+  	
+	}
+	waitKey(0);
+  	return 0;
+	
+}  
+ /* @function readme 
+ void readme()
+ { std::cout << " Usage: ./SURF_descriptor <img1> <img2>" << std::endl; }*/
+
+Mat orb_feature(Mat img_object,Mat img_scene)
+{
+	//-- Step 1: Detect the keypoints using SURF Detector, compute the descriptors
+  	
+	/*Ptr<SIFT> sift=SIFT::create();
+	vector<KeyPoint>keyPoints_object,keyPoints_scene;
+  	Mat descriptors_object, descriptors_scene;
+  	sift->detectAndCompute( img_object, Mat(), keyPoints_object, descriptors_object );
+  	sift->detectAndCompute( img_scene, Mat(), keyPoints_scene, descriptors_scene );*/
+	/*int minHessian = 400;
+	Ptr<SURF> detector=SURF::create();
+	detector->setHessianThreshold(minHessian);
+  	vector<KeyPoint>keyPoints_object,keyPoints_scene;
+	Mat descriptors_object, descriptors_scene;
+	detector->detectAndCompute( img_object, Mat(), keyPoints_object, descriptors_object );;
+	detector->detectAndCompute( img_scene, Mat(), keyPoints_scene, descriptors_scene );*/
+
+	Ptr<ORB> orb=ORB::create();
+  	vector<KeyPoint>keyPoints_object,keyPoints_scene;
+  	Mat descriptors_object, descriptors_scene;
+  	orb->detectAndCompute( img_object, Mat(), keyPoints_object, descriptors_object );
+  	orb->detectAndCompute( img_scene, Mat(), keyPoints_scene, descriptors_scene );
+
+  	//-- Step 2: Matching descriptor vectors with a brute force matcher
+  	//BruteForceMatcher()  
+  	BFMatcher matcher(NORM_L2);
+	//FlannBasedMatcher matcher;
+  	vector< DMatch > matches;
+  	matcher.match( descriptors_object, descriptors_scene, matches );
+
+	double max_dist = 0; double min_dist = 100;
+	//-- Quick calculation of max and min distances between keypoints
+	for( int i = 0; i < descriptors_object.rows; i++ )
+	{ 
+		double dist = matches[i].distance;
+		if( dist < min_dist ) min_dist = dist;
+		if( dist > max_dist ) max_dist = dist;
+	}
+	printf("-- Max dist : %f \n", max_dist );
+	printf("-- Min dist : %f \n", min_dist );
+	//-- Draw only "good" matches (i.e. whose distance is less than 3*min_dist )
+	std::vector< DMatch > good_matches;
+	for( int i = 0; i < descriptors_object.rows; i++ )
+	{ 
+		if( matches[i].distance <=  3*min_dist)
+		{ 
+			good_matches.push_back( matches[i]); 
+		}
+	}
+	Mat img_matches;
+	drawMatches( img_object, keyPoints_object, img_scene, keyPoints_scene,
+		     good_matches, img_matches, Scalar::all(-1), Scalar::all(-1),
+		     std::vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
+	//-- Localize the object
+	std::vector<Point2f> obj;
+	std::vector<Point2f> scene;
+	for( size_t i = 0; i < good_matches.size(); i++ )
+	{
+		//-- Get the keypoints from the good matches
+		obj.push_back( keyPoints_object[ good_matches[i].queryIdx ].pt );
+		scene.push_back( keyPoints_scene[ good_matches[i].trainIdx ].pt );
+	}
+	Mat H = findHomography( obj, scene, RANSAC );
+	if(H.cols==3)
+	{
+		//imagecount++;	  
+		cout<<H<<endl;
+		//cout<<imagecount<<endl;
+		//-- Get the corners from the image_1 ( the object to be "detected" )
+		std::vector<Point2f> obj_corners(4);
+		obj_corners[0] = cvPoint(0,0); obj_corners[1] = cvPoint( img_object.cols, 0 );
+		obj_corners[2] = cvPoint( img_object.cols, img_object.rows ); obj_corners[3] = cvPoint( 0, img_object.rows );
+		std::vector<Point2f> scene_corners(4);
+	
+		perspectiveTransform( obj_corners, scene_corners,H);
+		  
+		//-- Draw lines between the corners (the mapped object in the scene - image_2 )
+		line( img_matches, scene_corners[0] + Point2f( img_object.cols, 0), scene_corners[1] + Point2f( img_object.cols, 0), Scalar(0, 255, 0), 4 );
+		line( img_matches, scene_corners[1] + Point2f( img_object.cols, 0), scene_corners[2] + Point2f( img_object.cols, 0), Scalar( 0, 255, 0), 4 );
+		line( img_matches, scene_corners[2] + Point2f( img_object.cols, 0), scene_corners[3] + Point2f( img_object.cols, 0), Scalar( 0, 255, 0), 4 );
+		line( img_matches, scene_corners[3] + Point2f( img_object.cols, 0), scene_corners[0] + Point2f( img_object.cols, 0), Scalar( 0, 255, 0), 4 );
+	}
+
+	return img_matches;
+}
