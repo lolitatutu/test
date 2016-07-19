@@ -1,0 +1,69 @@
+#include <iostream>
+#include "opencv2/imgproc.hpp"
+#include "opencv2/highgui.hpp"
+using namespace cv;
+using namespace std;
+
+Mat g_grayimg_object;
+Mat g_grayimg_scene;
+RNG g_rng(12345);
+Mat GoodFeatures(Mat grayimg);
+int main( int argc, char** argv )
+{
+	
+  	 
+	FILE *fp;  
+	char imagepath[200];  
+	int imagecount=0;
+	//imshow("1",img_1);
+	Mat img_object=imread("1305031229.528748.png");
+	
+	cvtColor(img_object,g_grayimg_object,COLOR_BGR2GRAY);
+	
+	
+	//waitKey(500);
+	/* IMAGE_LIST_FILE 存放图像的名字*/  
+	fp=fopen("rgb1.txt","r");  
+	while(!feof(fp)) 
+	  
+	while(fscanf(fp,"%s ",imagepath)   >   0)   
+	{  
+		 
+		Mat img_scene=imread(imagepath);
+		Mat g_grayimg_scene; 
+		cvtColor(img_scene,g_grayimg_scene,COLOR_BGR2GRAY);
+		Mat lala=GoodFeatures(g_grayimg_scene);
+		imshow("flow",lala);
+		//Mat corner=GoodFeatures(g_grayimg_scene);
+		//imshow("flow",corner);
+		waitKey(10);
+		//GoodFeatures();
+	
+	}
+	waitKey(0);
+  	return 0;
+	
+} 
+Mat GoodFeatures(Mat grayimg)
+{
+	//Shi-Tomasi parameter
+	vector<Point2f>corners;
+	int maxCornerNumber=100;
+	double qualityLevel=0.3;
+	double minDistance=100;
+	int blockSize=7;
+	double k=0.04;
+	Mat copy=grayimg.clone();
+	
+	//Shi-Tomasi corner detection
+	goodFeaturesToTrack(grayimg,corners,maxCornerNumber,qualityLevel,minDistance,Mat(),blockSize,false,k);
+	
+	//draw corners
+	int r=4;
+	for(unsigned int i=0;i<corners.size();i++)
+	{
+		circle(copy,corners[i],r,Scalar(g_rng.uniform(0,255),g_rng.uniform(0,255),g_rng.uniform(0,255)),-1,8,0);
+	}
+	return copy;
+	
+}
